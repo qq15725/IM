@@ -1,13 +1,19 @@
 <?php
 
 return [
-    'listen'           => [
+
+    /**
+     * 监听相关配置
+     */
+    'listen' => [
         'ip'   => '0.0.0.0',
         'port' => 58582
     ],
+
     'socket' => [
         'type' => defined('SWOOLE_SOCK_TCP') ? \SWOOLE_SOCK_TCP : 1
     ],
+
     'enable_gzip'      => false,
     'enable_coroutine' => false,
     'handle_static'    => false,
