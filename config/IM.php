@@ -14,6 +14,8 @@ return [
         'type' => defined('SWOOLE_SOCK_TCP') ? \SWOOLE_SOCK_TCP : 1
     ],
 
+    'enable_coroutine' => false,
+
     /**
      * 进程相关配置
      */

@@ -237,6 +237,24 @@ class Application extends Container
     }
 
     /**
+     * Flush the container of all bindings and resolved instances.
+     *
+     * @return void
+     */
+    public function flush()
+    {
+        parent::flush();
+        $this->loadedProviders = [];
+        $this->reboundCallbacks = [];
+        $this->resolvingCallbacks = [];
+        $this->availableBindings = [];
+        $this->ranServiceBinders = [];
+        $this->loadedConfigurations = [];
+        $this->afterResolvingCallbacks = [];
+        $this->bootstrapContainer();
+    }
+
+    /**
      * Register the core container aliases.
      *
      * @return void
