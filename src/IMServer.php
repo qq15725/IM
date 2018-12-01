@@ -47,7 +47,6 @@ class IMServer
         $server->on('managerStart', [$this, 'onManagerStart']);
         $server->on('workerStart', [$this, 'onWorkerStart']);
         $server->on('workerError', [$this, 'onWorkerError']);
-        $server->on('request', [$this, 'onRequest']);
         $server->on('message', [$this, 'onMessage']);
         $server->on('task', [$this, 'onTask']);
         $server->on('finish', [$this, 'onFinish']);
@@ -95,14 +94,48 @@ class IMServer
         $this->log(sprintf('worker[%d] error: exitCode=%s, signal=%s', $workerId, $exitCode, $signal), 'ERROR');
     }
 
-    public function onRequest(\swoole_http_request $request, \swoole_http_response $response) {
-        $response->header('Content-type', 'text/html; charset=UTF-8');
-        $response->end('500 ArgumentCountError');
+    /**
+     * 发送错误信息
+     *
+     * @param $client_id
+     * @param $code
+     * @param $msg
+     */
+    public function sendErrorMessage($client_id, $code, $msg) {
+        $this->sendJson($client_id, ['cmd' => 'error', 'code' => $code, 'msg' => $msg]);
+    }
+
+    /**
+     * 发送JSON数据
+     *
+     * @param $client_id
+     * @param $array
+     */
+    public function sendJson($client_id, $array) {
+        $msg = json_encode($array);
+        if ($this->server->push($client_id, $msg) === false) {
+            $this->server->close($client_id);
+        }
     }
 
     public function onMessage(\swoole_websocket_server $server, \swoole_websocket_frame $frame) {
-        echo "receive from {$frame->fd}:{$frame->data},opcode:{$frame->opcode},fin:{$frame->finish}\n";
-        $server->push($frame->fd, "this is server");
+        $msg = $frame->data;
+        $client_id = $frame->fd;
+        $this->log("onMessage #$client_id: " . $msg);
+
+        $msg = json_decode($msg, true);
+
+        if (empty($msg['cmd'])) {
+            $this->sendErrorMessage($client_id, 101, "invalid command");
+            return;
+        }
+        $func = 'cmd_' . $msg['cmd'];
+        if (method_exists($this, $func)) {
+            $this->$func($client_id, $msg);
+        } else {
+            $this->sendErrorMessage($client_id, 102, "command $func no support.");
+            return;
+        }
     }
 
     public function onTask(\swoole_server $server, $taskId, $srcWorkerId, $data) {
