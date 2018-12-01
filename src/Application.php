@@ -43,6 +43,13 @@ class Application extends Container
      */
     protected $ranServiceBinders = [];
 
+    /**
+     * The Router instance.
+     *
+     * @var IMServer
+     */
+    public $IM;
+
     public function __construct($basePath = null) {
         if (!empty(env('APP_TIMEZONE'))) {
             date_default_timezone_set(env('APP_TIMEZONE', 'UTC'));
@@ -51,6 +58,7 @@ class Application extends Container
         $this->basePath = $basePath;
 
         $this->bootstrapContainer();
+        $this->bootstrapIM();
     }
 
     /**
@@ -63,6 +71,16 @@ class Application extends Container
         $this->instance('app', $this);
         $this->instance(self::class, $this);
         $this->registerContainerAliases();
+    }
+
+    /**
+     * Bootstrap the router instance.
+     *
+     * @return void
+     */
+    public function bootstrapIM()
+    {
+        $this->IM = new IMServer($this);
     }
 
     /**
@@ -92,29 +110,6 @@ class Application extends Container
     protected function registerConfigBindings() {
         $this->singleton('config', function () {
             return new Repository();
-        });
-    }
-
-    /**
-     * Register container bindings for the application.
-     *
-     * @return void
-     */
-    protected function registerSwooleWebsocketServerBindings() {
-        $this->singleton('server', function () {
-            $this->configure('server');
-            $ip         = $this->app['config']['server.listen.ip'];
-            $port       = $this->app['config']['server.listen.port'];
-            $socketType = $this->app['config']['server.socket.type'];
-            if ($socketType === \SWOOLE_SOCK_UNIX_STREAM) {
-                $socketDir = dirname($ip);
-                if (!file_exists($socketDir)) {
-                    mkdir($socketDir);
-                }
-            }
-            $useSSL     = isset($this->app['config']['server.settings.ssl_cert_file'], $this->app['config']['server.settings.ssl_key_file']);
-            $socketType = $useSSL ? $socketType | \SWOOLE_SSL : $socketType;
-            return new \swoole_websocket_server($ip, $port, \SWOOLE_PROCESS, $socketType);
         });
     }
 
@@ -216,6 +211,19 @@ class Application extends Container
     }
 
     /**
+     * Boots the registered providers.
+     */
+    public function boot() {
+        if ($this->booted) {
+            return;
+        }
+        array_walk($this->loadedProviders, function ($p) {
+            $this->bootProvider($p);
+        });
+        $this->booted = true;
+    }
+
+    /**
      * Boot the given service provider.
      *
      * @param  \Illuminate\Support\ServiceProvider $provider
@@ -235,7 +243,6 @@ class Application extends Container
      */
     protected function registerContainerAliases() {
         $this->aliases = [
-            'Swoole\WebSocket\Server'                => 'server',
             'Illuminate\Contracts\Config\Repository' => 'config'
         ];
     }
@@ -246,7 +253,6 @@ class Application extends Container
      * @var array
      */
     public $availableBindings = [
-        'config' => 'registerConfigBindings',
-        'server' => 'registerSwooleWebsocketServerBindings'
+        'config' => 'registerConfigBindings'
     ];
 }

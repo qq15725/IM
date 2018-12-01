@@ -14,11 +14,15 @@ return [
         'type' => defined('SWOOLE_SOCK_TCP') ? \SWOOLE_SOCK_TCP : 1
     ],
 
-    'enable_gzip'      => false,
-    'enable_coroutine' => false,
-    'handle_static'    => false,
-    'process_prefix'   => 'swoole',
-    'settings'         => [
+    /**
+     * 进程相关配置
+     */
+    'process' => [
+        // 进程前缀
+        'prefix' => 'IM'
+    ],
+
+    'settings' => [
         'daemonize'                => 0,
         'dispatch_mode'            => 2,
         'heartbeat_check_interval' => 10,  // 每10秒侦测一次心跳
@@ -31,7 +35,7 @@ return [
         'task_tmpdir'              => @is_writable('/dev/shm/') ? '/dev/shm' : '/tmp',
         'max_request'              => 3000,
         'open_tcp_nodelay'         => true,
-        'log_file'                 => '/storage/logs/swoole.log',
+        'log_file'                 => dirname(__DIR__) . '/storage/logs/IM.log',
         'log_level'                => 4,
         'buffer_output_size'       => 16 * 1024 * 1024,
         'socket_buffer_size'       => 128 * 1024 * 1024,
