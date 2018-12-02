@@ -193,7 +193,20 @@ class IMServer
         }
     }
 
-    function cmdMessage($clientId, $data) {
+    public function cmdJoinChannel($clientId, $data) {
+        $count    = count($this->server->connections);
+        $sendData = [
+            'code' => 200,
+            'msg'  => 'succ',
+            'data' => $count,
+            'cmd'  => 'JoinChannel'
+        ];
+        foreach ($this->server->connections as $fd) {
+            $this->sendJson($fd, $sendData);
+        }
+    }
+
+    public function cmdMessage($clientId, $data) {
         $sendData = [
             'code' => 200,
             'msg'  => 'succ',

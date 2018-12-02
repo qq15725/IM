@@ -5,7 +5,7 @@
 				<v-card>
 					<v-toolbar card>
 						<v-toolbar-side-icon></v-toolbar-side-icon>
-						<v-toolbar-title>CHAT</v-toolbar-title>
+						<v-toolbar-title>ONLINE {{ onlineNumber }}</v-toolbar-title>
 						<v-spacer></v-spacer>
 					</v-toolbar>
 
@@ -32,18 +32,23 @@
     data () {
       return {
         ws: {},
-        msg: ''
+        msg: '',
+        onlineNumber: 0
       }
     },
     created () {
       this.ws = new WebSocket('ws://0.0.0.0:58582')
 
       this.ws.onopen = evt => {
-        console.log('Connection open ...')
+        this.ws.send(JSON.stringify({ cmd: 'JoinChannel', data: 'welcome' }))
       }
 
-      this.ws.onmessage = evt => {
-        console.log('Received Message: ' + evt.data)
+      this.ws.onmessage = ({ data }) => {
+        data = JSON.parse(data)
+				console.log(data)
+        if (data.cmd === 'JoinChannel') {
+					this.onlineNumber = data.data
+				}
       }
 
       this.ws.onclose = evt => {
