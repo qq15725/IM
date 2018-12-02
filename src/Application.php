@@ -51,9 +51,8 @@ class Application extends Container
     public $IM;
 
     public function __construct($basePath = null) {
-        if (!empty(env('APP_TIMEZONE'))) {
-            date_default_timezone_set(env('APP_TIMEZONE', 'UTC'));
-        }
+        // TODO get env config
+        date_default_timezone_set('Asia/Shanghai');
 
         $this->basePath = $basePath;
 

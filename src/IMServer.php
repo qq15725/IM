@@ -2,8 +2,10 @@
 
 namespace IM;
 
+use IM\Events\Dispatchers\SqlListener;
 use IM\Traits\LogTrait;
 use IM\Traits\ProcessTitleTrait;
+use Illuminate\Database\Capsule\Manager;
 
 class IMServer
 {
@@ -88,6 +90,63 @@ class IMServer
         $this->log('workerStart ' . $workerId);
 
         $this->app->flush();
+
+        try {
+            (new \Dotenv\Dotenv($this->app->basePath('')))->load();
+        } catch (\Dotenv\Exception\InvalidPathException $e) {
+            //
+        }
+
+        // 初始化 数据库
+        $this->app->singleton(\Illuminate\Support\Facades\DB::class, function () {
+            $capsule = new Manager();
+            $capsule->addConnection([
+                'read'      => [
+                    'host'     => env('DB_HOST'),
+                    'username' => env('DB_USERNAME'),
+                    'password' => env('DB_PASSWORD'),
+                    'database' => env('DB_DATABASE')
+                ],
+                'write'     => [
+                    'host'     => env('DB_HOST'),
+                    'username' => env('DB_USERNAME'),
+                    'password' => env('DB_PASSWORD'),
+                    'database' => env('DB_DATABASE')
+                ],
+                'driver'    => 'mysql',
+                'charset'   => 'utf8',
+                'collation' => 'utf8_unicode_ci',
+                'prefix'    => env('DB_PREFIX'),
+            ]);
+            $capsule->setFetchMode(\PDO::FETCH_ASSOC);
+            // 使用设置静态变量方法，令当前的 Capsule 实例全局可用
+            // illuminate/database/Connection.php tryAgainIfCausedByLostConnection 方法处理 server has gone away 问题
+            $capsule->setAsGlobal();
+            $capsule->bootEloquent();
+            if (!env('DEBUG')) {
+                $capsule->setEventDispatcher(new SqlListener());
+            }
+            return $capsule;
+        });
+
+        // 初始化 缓存数据库
+        $this->app->singleton(\Redis::class, function () {
+            $redis = new \Redis();
+            $redis->connect(env('REDIS_HOST'), env('REDIS_PORT'));
+            if ($password = env('REDIS_PASSWORD')) {
+                $redis->auth($password);
+            }
+            return $redis;
+        });
+
+        // 初始化 debug 设置
+        if (!env('DEBUG')) {
+            error_reporting(E_ALL ^ E_DEPRECATED);
+            ini_set('error_reporting', E_ALL);
+            ini_set('display_errors', 'ON');
+        } else {
+            error_reporting(E_ALL & ~E_STRICT & ~E_NOTICE & ~E_WARNING & ~E_DEPRECATED);
+        }
     }
 
     public function onWorkerError(\swoole_http_server $server, $workerId, $workerPId, $exitCode, $signal) {
@@ -120,21 +179,31 @@ class IMServer
 
     public function onMessage(\swoole_websocket_server $server, \swoole_websocket_frame $frame) {
         $msg = $frame->data;
-        $client_id = $frame->fd;
-        $this->log("onMessage #$client_id: " . $msg);
-
         $msg = json_decode($msg, true);
-
         if (empty($msg['cmd'])) {
-            $this->sendErrorMessage($client_id, 101, "invalid command");
+            $this->sendErrorMessage($frame->fd, 101, "invalid command");
             return;
         }
-        $func = 'cmd_' . $msg['cmd'];
+        $func = 'cmd' . $msg['cmd'];
         if (method_exists($this, $func)) {
-            $this->$func($client_id, $msg);
+            $this->$func($frame->fd, $msg);
         } else {
-            $this->sendErrorMessage($client_id, 102, "command $func no support.");
+            $this->sendErrorMessage($frame->fd, 102, "command $func no support.");
             return;
+        }
+    }
+
+    function cmdMessage($clientId, $data) {
+        $sendData = [
+            'code' => 200,
+            'msg'  => 'succ',
+            'data' => $data['data'],
+            'cmd'  => 'Message'
+        ];
+        foreach ($this->server->connections as $fd) {
+            if ($fd != $clientId) {
+                $this->sendJson($fd, $sendData);
+            }
         }
     }
 
